@@ -84,3 +84,27 @@ The following are **outside the scope**:
 ## 7. Expected Outcome
 
 A working REST API application that allows warehouse staff to manage packages, view dispatch batches, filter records and generate basic warehouse statistics.
+
+## Backend configuration
+
+Before starting the backend, set these environment variables in the same
+PowerShell session:
+
+```powershell
+Set-Location .\backend
+python -m pip install -r requirements.txt
+$env:WAREHOUSE_LOGIN_USERNAME = "your-login-name"
+$env:WAREHOUSE_LOGIN_PASSWORD = "your-login-password"
+$env:WAREHOUSE_JWT_SECRET = "<random value of at least 32 bytes>"
+uvicorn main:app --reload --port 8001
+```
+
+Generate a signing secret locally with:
+
+```powershell
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Keep the values private and do not commit them to source control. The JWT
+secret must remain stable while tokens are in use; changing it invalidates
+existing tokens.

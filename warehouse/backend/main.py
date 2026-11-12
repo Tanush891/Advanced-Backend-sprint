@@ -1,12 +1,11 @@
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
+from datetime import datetime, timedelta
 
 import functions
 
-
 app = FastAPI()
-
 
 app.add_middleware(
     CORSMiddleware,
@@ -16,58 +15,126 @@ app.add_middleware(
 )
 
 
-@app.get("/")
-def hello():
-    return {"message": "Warehouse app running successfully"}
-
-
-# E1 - Get all packages
-@app.get("/packages")
-def get_packages():
-
-    return functions.get_packages()
-
-
-# E2 - Get package by ID
-@app.get("/packages/{package_id}")
-def get_package(package_id: int):
-
-    package = functions.get_package(id=package_id)
-
-    if package is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Package not found."
-        )
-
-    return package
-
-
-# E3 - Add a new package
+# E1 - Register Package
 @app.post("/packages")
-def add_package(package_name: str, destination: str, weight: str, arrival_date: str):
+def register_package(name: str, destination: str, weight: int, token=Header(None)):
 
-    if not package_name.strip():
-        raise HTTPException(status_code=422, detail="Package name is required.")
+    username = functions.verify_token(token=token)
 
-    if not destination.strip():
-        raise HTTPException(status_code=422, detail="Destination is required.")
+    if not username:
+        raise HTTPException(status_code=401, detail="Invalid access token.")
 
-    if not weight.strip():
-        raise HTTPException(status_code=422, detail="Weight is required.")
-
-    if not arrival_date.strip():
-        raise HTTPException(status_code=422, detail="Arrival date is required.")
-
-    package_id = functions.add_package(
-        package_name=package_name,
+    return functions.register_package(
+        name=name,
         destination=destination,
-        weight=weight,
+        weight=weight
+    )
+
+
+# E2 - Get Package Details
+@app.get("/packages/{package_id}")
+def get_package_details(package_id: int, token=Header(None)):
+
+    username = functions.verify_token(token=token)
+
+    if not username:
+        raise HTTPException(status_code=401, detail="Invalid access token.")
+
+    return functions.get_package_by_id(package_id=package_id)
+
+
+# E3 - Update Package Details
+@app.patch("/packages/{package_id}")
+def update_package_details(
+    package_id: int,
+    name: str = None,
+    destination: str = None,
+    weight: str = None,
+    token=Header(None)
+):
+
+    username = functions.verify_token(token=token)
+
+    if not username:
+        raise HTTPException(status_code=401, detail="Invalid access token.")
+
+    return functions.update_package_details(
+        package_id=package_id,
+        name=name,
+        destination=destination,
+        weight=weight
+    )
+
+
+# E4 - Delete Package
+@app.delete("/packages/{package_id}")
+def delete_package(package_id: int, token=Header(None)):
+
+    username = functions.verify_token(token=token)
+
+    if not username:
+        raise HTTPException(status_code=401, detail="Invalid access token.")
+
+    return functions.delete_package(package_id=package_id)
+
+
+# E5 - Search Packages
+@app.get("/packages")
+def search_package(
+    destination: str = None,
+    status: str = None,
+    arrival_date: str = None,
+    token=Header(None)
+):
+
+    username = functions.verify_token(token=token)
+
+    if not username:
+        raise HTTPException(status_code=401, detail="Invalid access token.")
+
+    return functions.search_package(
+        destination=destination,
+        status=status,
         arrival_date=arrival_date
     )
 
-    return {
-        "message": "Package added successfully.",
-        "id": package_id,
-        "status": "pending"
-    }
+
+# Login
+@app.post("/login")
+def login(username: str, password: str):
+
+    tokens = functions.verify_login(
+        username=username,
+        password=password
+    )
+
+    if tokens is False:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid username or password."
+        )
+
+    return tokens
+
+
+# Refresh Token
+@app.post("/refresh")
+def refresh(refresh_token=Header(None)):
+
+    username = functions.verify_token(
+        token=refresh_token,
+        token_type="refresh"
+    )
+
+    if not username:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid refresh token."
+        )
+
+    new_access_token = functions.create_token(
+        username=username,
+        token_type="access"
+    )
+
+    return {"access_token": new_access_token}
